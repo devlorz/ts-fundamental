@@ -5,21 +5,31 @@ interface CurrencyResult {
   rates: { [a: string]: number };
 }
 
-class Currency<Currencies extends string[]> {
+class Currency<const Currencies> {
   host = "api.frankfurter.app";
 
   constructor(public currencies: Currencies) {}
 
-  convert(from: string, to: string, amount: number) {
+  convert(
+    from: Currencies[keyof Currencies],
+    to: Currencies[keyof Currencies],
+    amount: number
+  ) {
     return fetch(
       `https://${this.host}/latest?amount=${amount}&from=${from}&to=${to}`
     ).then((x) => x.json() as any as CurrencyResult);
+  }
+
+  log(currencies: Currencies[keyof Currencies]) {
+    console.log(currencies);
   }
 }
 
 const myCurrency = new Currency(["USD", "JPY", "THB"]);
 
 myCurrency.convert("THB", "USD", 100).then(console.log);
+
+myCurrency.log("JPY");
 
 /*
 
