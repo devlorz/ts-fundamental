@@ -5,34 +5,40 @@ interface CurrencyResult<T extends string> {
   rates: Record<T, number>;
 }
 
-class Currency<const Currencies extends string[]> {
+function cache(method: Function, context: any) {
+  return async function (
+    this: Currency,
+    from: string,
+    to: string,
+    amount: number
+  ) {
+    const key = `${from}${to}`;
+
+    if (this.caches[key]) return this.caches[key] * amount;
+
+    const result = await method.call(this, from, to, amount);
+
+    const rate = result.rates[to];
+    this.caches[key] = rate / result.amount;
+
+    return rate;
+  };
+}
+
+class Currency<
+  const Currencies extends readonly string[] = [],
+  Values extends string = Extract<Currencies[keyof Currencies], string>
+> {
   host = "api.frankfurter.app";
-  private caches: Record<string, number> = {};
+  caches: Record<string, number> = {};
 
   constructor(public currencies: Currencies) {}
 
-  async convert<To extends Currencies[keyof Currencies]>(
-    from: Currencies[keyof Currencies],
-    to: To,
-    amount: number
-  ) {
-    const key = `${from}{to}` as To extends string ? To : never;
-
-    if (this.caches[key]) {
-      return this.caches[key];
-    }
-
-    const result = await fetch(
+  @cache
+  async convert<To extends Values>(from: Values, to: To, amount: number) {
+    return fetch(
       `https://${this.host}/latest?amount=${amount}&from=${from}&to=${to}`
-    ).then(
-      (x) => x.json() as any as CurrencyResult<To extends string ? To : never>
-    );
-
-    const rate = result.rates[to as To extends string ? To : never];
-
-    this.caches[key] = rate;
-
-    return rate;
+    ).then((x) => x.json() as unknown as CurrencyResult<To>);
   }
 
   get latest() {
@@ -42,6 +48,12 @@ class Currency<const Currencies extends string[]> {
 
 const myCurrency = new Currency(["USD", "JPY", "THB"]);
 
-myCurrency.convert("THB", "USD", 100).then(console.log);
+const a = async () => {
+  await myCurrency.convert("THB", "USD", 100).then(console.log);
+  await myCurrency.convert("THB", "USD", 100).then(console.log);
+  await myCurrency.convert("THB", "USD", 100).then(console.log);
+};
+
+a();
 
 // myCurrency.latest.then(console.log);
